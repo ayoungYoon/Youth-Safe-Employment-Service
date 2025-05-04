@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>청소년 노동권 보호 AI</title>
+    <style>
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f5f5f5;
+        }
+        header {
+            background-color: #0066cc;
+            color: white;
+            padding: 20px;
+            text-align: center;
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+        nav {
+            display: flex;
+            background-color: #ddd;
+        }
+        nav div {
+            flex: 1;
+            padding: 12px;
+            text-align: center;
+            background-color: #eee;
+            border-bottom: 2px solid #ccc;
+            cursor: pointer;
+        }
+        nav div.active {
+            background-color: white;
+            border-bottom: none;
+        }
+        .tab-content {
+            display: none;
+            padding: 30px;
+            background-color: white;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        input[type="text"], input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #004d99;
+        }
+        .label {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        #chat-log {
+            border: 1px solid #ccc;
+            height: 200px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+        .user { color: black; }
+        .bot { color: blue; }
+    </style>
+</head>
+<body>
+    <header>⛨ 청소년 노동권 보호 AI</header>
+
+    <nav>
+        <div class="tab-button active" onclick="showTab('wage')">평균입금 계산기</div>
+        <div class="tab-button" onclick="showTab('chatbot')">대응 챗봇</div>
+    </nav>
+
+    <div id="wage" class="tab-content active">
+        <h2>최저임금 & 주휴수당 계산</h2>
+        <label class="label">한 달 급여(원):</label>
+        <input type="number" id="monthly-wage" placeholder="월급 입력">
+
+        <label class="label">일한 주당 시간:</label>
+        <input type="number" id="weekly-hours" placeholder="주간 근무 시간">
+
+        <label class="label">시급 (현재 최저시급은 10030원입니다):</label>
+        <input type="number" id="hourly-wage" value="10030">
+
+        <button onclick="calculate()">계산하기</button>
+        <div id="result" style="margin-top:10px; font-weight: bold;"></div>
+    </div>
+
+    <div id="chatbot" class="tab-content">
+        <h2>대응 챗봇</h2>
+        <div id="chat-log"></div>
+        <input type="text" id="user-input" placeholder="궁금한 점을 입력해주세요...">
+        <button onclick="sendMessage()">전송</button>
+    </div>
+
+    <script>
+        let chatbotData = {};
+
+        // CSV 데이터 로드
+        fetch('chatbot_data.csv')
+          .then(res => res.text())
+          .then(text => {
+            const lines = text.trim().split('\n');
+            for (let i = 1; i < lines.length; i++) {
+              const [question, answer] = lines[i].split(',');
+              if (question && answer) {
+                chatbotData[question.trim()] = answer.trim();
+              }
+            }
+          });
+
+        function showTab(tabName) {
+            const tabs = document.querySelectorAll(".tab-content");
+            const buttons = document.querySelectorAll(".tab-button");
+            tabs.forEach(tab => tab.classList.remove("active"));
+            buttons.forEach(btn => btn.classList.remove("active"));
+            document.getElementById(tabName).classList.add("active");
+            event.currentTarget.classList.add("active");
+        }
+
+        function sendMessage() {
+            const inputBox = document.getElementById("user-input");
+            const chatLog = document.getElementById("chat-log");
+            const userMessage = inputBox.value.trim();
+
+            if (!userMessage) return;
+
+            chatLog.innerHTML += `<div class="user">🙋‍♀️ ${userMessage}</div>`;
+            const response = findResponse(userMessage);
+            chatLog.innerHTML += `<div class="bot">🤖 ${response}</div>`;
+            chatLog.scrollTop = chatLog.scrollHeight;
+            inputBox.value = "";
+        }
+
+        function findResponse(input) {
+            input = input.toLowerCase();
+            for (let key in chatbotData) {
+                if (input.includes(key.toLowerCase())) {
+                    return chatbotData[key];
+                }
+            }
+            return "죄송해요. 질문을 정확히 이해하지 못했어요. 다시 입력해 주세요.";
+        }
+
+        function calculate() {
+            const hours = parseFloat(document.getElementById("weekly-hours").value);
+            const wage = parseFloat(document.getElementById("hourly-wage").value);
+            const resultBox = document.getElementById("result");
+
+            if (isNaN(hours) || isNaN(wage)) {
+                resultBox.innerText = "올바른 숫자를 입력하세요.";
+                return;
+            }
+
+            if (hours < 15) {
+                resultBox.innerText = "주휴수당 대상이 아닙니다. (15시간 미만 근무)";
+                return;
+            }
+
+            const paidHours = Math.min(hours, 40);
+            const holidayPay = (paidHours / 40) * 8 * wage;
+            resultBox.innerText = `주휴수당: 약 ${Math.round(holidayPay)}원`;
+        }
+    </script>
+</body>
+</html>
