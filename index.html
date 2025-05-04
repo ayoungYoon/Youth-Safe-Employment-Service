@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <title>청소년 노동권 상담 웹사이트</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <style>
+    body {
+      font-family: 'Noto Sans KR', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f4f4f4;
+    }
+
+    header {
+      background-color: #0069d9;
+      color: white;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    nav {
+      display: flex;
+      justify-content: center;
+      background-color: #ddd;
+    }
+
+    nav button {
+      padding: 1rem;
+      border: none;
+      background: #ddd;
+      cursor: pointer;
+      font-size: 1rem;
+      width: 50%;
+    }
+
+    nav button.active {
+      background: white;
+      font-weight: bold;
+      border-bottom: 2px solid #0069d9;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 1rem;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    /* 공통 입력창 스타일 */
+    input, button, select {
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      font-size: 1rem;
+    }
+
+    input[type="text"], input[type="number"] {
+      width: 100%;
+    }
+
+    button {
+      background-color: #0069d9;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    #chat {
+      height: 300px;
+      overflow-y: auto;
+      background: white;
+      padding: 1rem;
+      border: 1px solid #ccc;
+      margin-bottom: 1rem;
+    }
+
+    @media screen and (max-width: 600px) {
+      nav button {
+        font-size: 0.9rem;
+        padding: 0.75rem;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🛡 청소년 노동권 보호 AI</h1>
+  </header>
+
+  <nav>
+    <button id="tabCalc" class="active" onclick="switchTab('calc')">🧮 최저임금 계산기</button>
+    <button id="tabChat" onclick="switchTab('chat')">💬 대응 챗봇</button>
+  </nav>
+
+  <!-- 계산기 탭 -->
+  <div id="calc" class="tab-content active">
+    <h2>🧮 최저임금 & 주휴수당 계산</h2>
+    <label>한 달 급여 (원):</label><br>
+    <input type="number" id="salary" /><br>
+    <label>일한 주당 시간:</label><br>
+    <input type="number" id="weeklyHours" /><br>
+    <label>시급 (현재 최저시급은 10030원):</label><br>
+    <input type="number" id="hourlyWage" value="10030" /><br>
+    <button onclick="calculate()">계산하기</button>
+
+    <div id="calcResult" style="margin-top: 1rem;"></div>
+  </div>
+
+  <!-- 챗봇 탭 -->
+  <div id="chat" class="tab-content">
+    <h2>💬 부당대우 대응 챗봇</h2>
+    <input type="file" id="csvFile" accept=".csv" /><br>
+    <div id="chatBox"></div>
+
+    <input type="text" id="userInput" placeholder="궁금한 점을 입력하세요..." />
+    <button onclick="handleChat()">전송</button>
+  </div>
+
+  <script>
+    // 탭 전환
+    function switchTab(tab) {
+      document.querySelectorAll(".tab-content").forEach(div => div.classList.remove("active"));
+      document.getElementById(tab).classList.add("active");
+
+      document.getElementById("tabCalc").classList.remove("active");
+      document.getElementById("tabChat").classList.remove("active");
+      document.getElementById("tab" + tab.charAt(0).toUpperCase() + tab.slice(1)).classList.add("active");
+    }
+
+    // 계산기 로직
+    function calculate() {
+      const salary = parseInt(document.getElementById("salary").value);
+      const hours = parseFloat(document.getElementById("weeklyHours").value);
+      const wage = parseInt(document.getElementById("hourlyWage").value);
+
+      const isEligible = hours >= 15;
+      const weeklyPay = hours * wage;
+      const weeklyHolidayPay = isEligible ? ((hours / 40) * 8 * wage) : 0;
+      const totalPay = (weeklyPay + weeklyHolidayPay) * 4;
+
+      let result = `최저임금 기준 한 달 총 예상급여: <strong>${totalPay.toLocaleString()}원</strong><br>`;
+      result += `주휴수당 포함 여부: <strong>${isEligible ? "✔️ 지급 대상" : "❌ 대상 아님"}</strong><br>`;
+      result += `입력한 급여 <strong>${salary.toLocaleString()}원</strong>은 `;
+      result += (salary >= totalPay) ? "<span style='color:green;'>✔️ 적절합니다</span>" : "<span style='color:red;'>❌ 부족합니다</span>";
+
+      document.getElementById("calcResult").innerHTML = result;
+    }
+
+    // 챗봇 로직
+    let responses = [];
+
+    document.getElementById("csvFile").addEventListener("change", function(event) {
+      Papa.parse(event.target.files[0], {
+        header: true,
+        complete: function(results) {
+          responses = results.data;
+          addChat("🤖", "CSV 업로드 완료! 이제 궁금한 점을 입력해 주세요.");
+        }
+      });
+    });
+
+    function handleChat() {
+      const input = document.getElementById("userInput").value.trim();
+      if (!input) return;
+      addChat("👤", input);
+
+      const best = getBestMatch(input, responses);
+      if (best && best.score > 0.5) {
+        addChat("🤖", best.response);
+      } else {
+        addChat("🤖", "죄송해요. 질문을 이해하지 못했어요. 다시 입력해 주세요.");
+      }
+
+      document.getElementById("userInput").value = "";
+    }
+
+    function getBestMatch(input, data) {
+      let best = { keyword: "", response: "", score: 0 };
+      for (let pair of data) {
+        let score = getSimilarity(input, pair.keyword);
+        if (score > best.score) {
+          best = { ...pair, score };
+        }
+      }
+      return best;
+    }
+
+    function getSimilarity(a, b) {
+      a = a.toLowerCase();
+      b = b.toLowerCase();
+      const aChars = a.replace(/[^\w가-힣]/g, "").split("");
+      const bChars = b.replace(/[^\w가-힣]/g, "").split("");
+
+      let match = 0;
+      aChars.forEach(char => {
+        if (bChars.includes(char)) match++;
+      });
+
+      return match / Math.max(aChars.length, bChars.length);
+    }
+
+    function addChat(sender, text) {
+      const chatBox = document.getElementById("chatBox");
+      const message = document.createElement("div");
+      message.innerHTML = `<strong>${sender}</strong>: ${text}`;
+      chatBox.appendChild(message);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+  </script>
+</body>
+</html>
